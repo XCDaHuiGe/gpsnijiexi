@@ -3,11 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智能站点雷达 - 黄金辉vibe coding 开发</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    <script src="https://map.qq.com/api/gljs?v=1.exp&key=WJABZ-IC5LI-GLBG5-UA7DS-TU3SS-QVBMG"></script>
-    
+    <title>智能站点雷达 - 签名校验版</title>
     <style>
         :root {
             --primary: #00f2ea;
@@ -141,6 +137,25 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* 错误提示样式 */
+        .error-toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(239, 68, 68, 0.9);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
     </style>
 </head>
 <body class="flex flex-col items-center justify-start py-10 px-4">
@@ -162,7 +177,7 @@
             <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-[#00f2ea] to-[#ff0050]">
                 智能站点雷达
             </h1>
-            <p class="mt-3 text-gray-400 text-sm tracking-wide">基于腾讯地图API · Haversine核心算法 · 极速距离解析</p>
+            <p class="mt-3 text-gray-400 text-sm tracking-wide">基于腾讯地图API · Haversine核心算法 · 签名校验安全机制</p>
         </header>
 
         <!-- Step 1: 文件上传与验证 -->
@@ -172,6 +187,7 @@
                 <h2 class="text-lg font-semibold">导入站点数据</h2>
             </div>
             <input type="file" id="excelFile" accept=".xlsx, .xls" class="w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 rounded-lg cursor-pointer">
+            <p id="fileStatus" class="mt-3 text-xs text-gray-500">未选择文件</p>
             
             <!-- 文件预览 -->
             <div id="filePreview" class="hidden mt-4 p-4 bg-gray-800/50 rounded-lg">
@@ -211,6 +227,11 @@
         <!-- 执行按钮 -->
         <button id="startBtn" onclick="startAnalysis()" class="btn-gradient w-full py-4 rounded-2xl text-lg shadow-lg">
             开始雷达扫描
+        </button>
+
+        <!-- 快速测试逆解析 -->
+        <button id="testBtn" onclick="testReverseGeocode()" class="w-full py-3 rounded-2xl text-base font-semibold border border-[#00f2ea]/40 text-[#00f2ea] hover:bg-[#00f2ea]/10 transition-all">
+            🔍 快速测试：随机地址正逆解析
         </button>
 
         <!-- 数据就绪指示器 -->
@@ -254,6 +275,36 @@
             </div>
         </section>
 
+        <!-- 逆地理解码结果 -->
+        <section id="reverseSection" class="glass-card rounded-2xl p-6 hidden border-[#ff0050]/30">
+            <h2 class="text-xl font-bold mb-5 text-[#ff0050] flex items-center">
+                <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                逆地理解码结果
+            </h2>
+            <div class="space-y-4">
+                <div class="result-item flex justify-between items-center border-b border-gray-700/50 pb-3">
+                    <span class="text-gray-400 text-sm">原始地址</span>
+                    <span id="revOriginal" class="font-medium text-right text-sm text-gray-300 max-w-[60%]">-</span>
+                </div>
+                <div class="result-item flex justify-between items-center border-b border-gray-700/50 pb-3">
+                    <span class="text-gray-400 text-sm">经纬度</span>
+                    <span id="revCoords" class="font-mono text-[#00f2ea] text-sm">-</span>
+                </div>
+                <div class="result-item flex justify-between items-start border-b border-gray-700/50 pb-3">
+                    <span class="text-gray-400 text-sm mt-1">逆解析地址</span>
+                    <span id="revAddress" class="font-semibold text-right text-base text-white max-w-[60%]">-</span>
+                </div>
+                <div class="result-item flex justify-between items-center border-b border-gray-700/50 pb-3">
+                    <span class="text-gray-400 text-sm">所属区县</span>
+                    <span id="revDistrict" class="font-medium text-gray-300">-</span>
+                </div>
+                <div class="result-item flex justify-between items-center pt-2">
+                    <span class="text-gray-400 text-sm">街道/道路</span>
+                    <span id="revStreet" class="font-medium text-gray-300">-</span>
+                </div>
+            </div>
+        </section>
+
         <!-- 下载按钮 -->
         <button id="downloadBtn" onclick="downloadUpdatedExcel()" class="hidden btn-gradient w-full py-3 rounded-2xl text-base shadow-lg">
             下载更新后的Excel文件
@@ -266,27 +317,145 @@
         &copy; 2025 黄金辉vibe coding 开发 · 腾讯地图API驱动
     </footer>
 
-<script>
-    let stationCache = []; // 存储处理后的站点数据
-    let isPrepared = false;
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.1.1/crypto-js.min.js"></script>
+    <script async src="https://map.qq.com/api/gljs?v=1.exp&key=WJABZ-IC5LI-GLBG5-UA7DS-TU3SS-QVBMG"></script>
 
-    // 延时函数 (用于API限流：每秒5次 = 200ms间隔)
+<script>
+    // 签名密钥（替换为你的密钥）
+    const SECRET_KEY = 'eSlMAeQumore4ZduZQQNY0GX83x2xb35';
+    
+    let stationCache = [];
+    let isPrepared = false;
+    let uploadedFileName = '';
+
+    // 延时函数
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-    // 检查腾讯地图API是否加载成功
-    function checkTencentMapAPI() {
-        if (typeof qq === 'undefined' || !qq.maps || !qq.maps.Geocoder) {
-            alert("腾讯地图 JS API 加载失败！\n原因通常是：当前网页的域名未加入API密钥的白名单。\n请前往腾讯地图控制台修改 Key 的 WebServiceAPI 白名单设置。");
-            return false;
+    // 显示错误提示
+    function showError(message) {
+        const toast = document.createElement('div');
+        toast.className = 'error-toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.remove();
+        }, 5000);
+    }
+
+    // 生成签名（腾讯地图WebServiceAPI签名校验规则）
+    // 规则：请求路径 + "?" + 排序后的原始参数 + SK，再MD5
+    // 注意：所有请求参数（包括callback）都参与签名，sig自身不参与
+    function generateSignature(path, params) {
+        const sortedKeys = Object.keys(params).filter(k => k !== 'sig').sort();
+        let paramString = '';
+        for (const key of sortedKeys) {
+            paramString += `${key}=${params[key]}&`;
         }
-        return true;
+        paramString = paramString.slice(0, -1);
+        const stringToSign = path + '?' + paramString + SECRET_KEY;
+        return CryptoJS.MD5(stringToSign).toString();
+    }
+
+    // JSONP方式调用腾讯地图WebServiceAPI（绕过浏览器CORS限制）
+    function geocodeViaJsonp(address) {
+        return new Promise((resolve, reject) => {
+            const callbackName = 'qqmap_cb_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+            const API_PATH = '/ws/geocoder/v1';
+            const params = {
+                address: address,
+                callback: callbackName,
+                key: 'WJABZ-IC5LI-GLBG5-UA7DS-TU3SS-QVBMG',
+                output: 'jsonp'
+            };
+            // 生成签名（所有参数包括callback都参与签名）
+            params.sig = generateSignature(API_PATH, params);
+
+            const timeout = setTimeout(() => {
+                cleanup();
+                reject(new Error('请求超时: ' + address));
+            }, 10000);
+
+            window[callbackName] = function(data) {
+                cleanup();
+                if (data.status === 0) {
+                    resolve({ lat: data.result.location.lat, lng: data.result.location.lng });
+                } else {
+                    reject(new Error('地址解析失败(' + data.status + '): ' + (data.message || '未知错误')));
+                }
+            };
+
+            function cleanup() {
+                clearTimeout(timeout);
+                delete window[callbackName];
+                if (script.parentNode) script.parentNode.removeChild(script);
+            }
+
+            const script = document.createElement('script');
+            script.src = `https://apis.map.qq.com${API_PATH}?${new URLSearchParams(params)}`;
+            script.onerror = () => {
+                cleanup();
+                reject(new Error('网络请求失败，请检查网络连接'));
+            };
+            document.head.appendChild(script);
+        });
+    }
+
+    // 逆地理解码：经纬度 → 地址
+    function reverseGeocodeViaJsonp(lat, lng) {
+        return new Promise((resolve, reject) => {
+            const callbackName = 'qqmap_rcb_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+            const API_PATH = '/ws/geocoder/v1';
+            const params = {
+                location: lat + ',' + lng,
+                callback: callbackName,
+                key: 'WJABZ-IC5LI-GLBG5-UA7DS-TU3SS-QVBMG',
+                output: 'jsonp',
+                get_poi: 0
+            };
+            params.sig = generateSignature(API_PATH, params);
+
+            const timeout = setTimeout(() => {
+                cleanup();
+                reject(new Error('逆解析请求超时'));
+            }, 10000);
+
+            window[callbackName] = function(data) {
+                cleanup();
+                if (data.status === 0) {
+                    resolve(data.result);
+                } else {
+                    reject(new Error('逆解析失败(' + data.status + '): ' + (data.message || '未知错误')));
+                }
+            };
+
+            function cleanup() {
+                clearTimeout(timeout);
+                delete window[callbackName];
+                if (script.parentNode) script.parentNode.removeChild(script);
+            }
+
+            const script = document.createElement('script');
+            script.src = `https://apis.map.qq.com${API_PATH}?${new URLSearchParams(params)}`;
+            script.onerror = () => {
+                cleanup();
+                reject(new Error('网络请求失败，请检查网络连接'));
+            };
+            document.head.appendChild(script);
+        });
     }
 
     // 监听文件上传
-    document.getElementById('excelFile').addEventListener('change', async function(e) {
+    function handleFileUpload(e) {
         const file = e.target.files[0];
-        if (!file) return;
+        if (!file) {
+            showError("请选择Excel文件！");
+            return;
+        }
 
+        uploadedFileName = file.name;
         isPrepared = false;
         stationCache = [];
         document.getElementById('resultSection').classList.add('hidden');
@@ -296,85 +465,95 @@
         const preview = document.getElementById('filePreview');
         const previewContent = document.getElementById('previewContent');
         
-        try {
-            overlay.classList.remove('hidden');
-            
-            const data = await parseExcel(file);
-            if (!validateExcelStructure(data)) {
-                overlay.classList.add('hidden');
-                return;
-            }
-            
-            // 显示预览
-            preview.classList.remove('hidden');
-            previewContent.innerHTML = `
-                <div>总行数：${data.length}</div>
-                <div>必填列：站点具体位置（误差不超过100米）</div>
-                <div>可选列：站点名称、站长姓名、站长电话</div>
-            `;
-            
-            const total = data.length;
-            let processed = 0;
-            let apiCalls = 0;
-            
-            // 处理数据
-            for (let i = 0; i < data.length; i++) {
-                const row = data[i];
-                const addr = row['站点具体位置（误差不超过100米）'];
+        (async function() {
+            try {
+                overlay.classList.remove('hidden');
                 
-                if (!addr) continue; // 跳过无地址的行
+                // 显示文件名
+                document.getElementById('fileStatus').textContent = `正在处理: ${file.name}`;
                 
-                let lat = parseFloat(row['latitude']);
-                let lng = parseFloat(row['longitude']);
+                const data = await parseExcel(file);
+                if (!data || data.length === 0) {
+                    showError("Excel文件中没有数据！");
+                    overlay.classList.add('hidden');
+                    return;
+                }
                 
-                if (isNaN(lat) || isNaN(lng)) {
-                    // 需要API解析
-                    if (checkTencentMapAPI()) {
-                        const geocoder = new qq.maps.Geocoder();
-                        await new Promise((resolve) => {
-                            geocoder.getLocation(addr, function(result) {
-                                if (result && result.status === 0) {
-                                    row.latitude = result.location.lat;
-                                    row.longitude = result.location.lng;
-                                } else {
-                                    console.warn(`解析失败: ${addr}`);
-                                }
-                                processed++;
-                                apiCalls++;
-                                updateProgress(processed, total, apiCalls);
-                                resolve();
-                            });
-                        });
-                        await sleep(250); // 限流
+                // 验证文件结构
+                if (!validateExcelStructure(data)) {
+                    overlay.classList.add('hidden');
+                    return;
+                }
+                
+                // 显示预览
+                preview.classList.remove('hidden');
+                previewContent.innerHTML = `
+                    <div>文件名：${file.name}</div>
+                    <div>总行数：${data.length}</div>
+                    <div>必填列：站点具体位置（误差不超过100米）</div>
+                    <div>可选列：站点名称、站长姓名、站长电话</div>
+                `;
+                
+                const total = data.length;
+                let processed = 0;
+                let apiCalls = 0;
+                
+                // 处理数据
+                for (let i = 0; i < data.length; i++) {
+                    const row = data[i];
+                    const addr = row['站点具体位置（误差不超过100米）'];
+                    
+                    if (!addr) {
+                        processed++;
+                        updateProgress(processed, total, apiCalls);
+                        continue; // 跳过无地址的行
                     }
-                } else {
+                    
+                    let lat = parseFloat(row['latitude']);
+                    let lng = parseFloat(row['longitude']);
+                    
+                    if (isNaN(lat) || isNaN(lng)) {
+                        // 需要API解析
+                        try {
+                            const loc = await geocodeViaJsonp(addr);
+                            row.latitude = loc.lat;
+                            row.longitude = loc.lng;
+                        } catch (err) {
+                            console.warn(`解析失败: ${addr}`, err.message);
+                        }
+                        apiCalls++;
+                        await sleep(250); // 仅API调用后限流
+                    }
                     processed++;
                     updateProgress(processed, total, apiCalls);
                 }
+                
+                // 过滤有效数据
+                stationCache = data.filter(row => 
+                    row['站点具体位置（误差不超过100米）'] && 
+                    !isNaN(parseFloat(row['latitude'])) && 
+                    !isNaN(parseFloat(row['longitude']))
+                );
+                isPrepared = stationCache.length > 0;
+                
+                overlay.classList.add('hidden');
+                previewContent.innerHTML += `<div class="mt-2 text-[#00f2ea]">✓ 有效站点: ${stationCache.length} 个</div>`;
+                document.getElementById('fileStatus').textContent = `已就绪: ${file.name} (${stationCache.length}个有效站点)`;
+                
+                if (stationCache.length > 0) {
+                    onDataReady();
+                } else {
+                    showError("未找到有效站点数据！");
+                }
+                
+            } catch (error) {
+                console.error("文件处理错误:", error);
+                overlay.classList.add('hidden');
+                document.getElementById('fileStatus').textContent = '处理失败，请重试';
+                showError("文件解析出错，请检查格式是否符合要求。");
             }
-            
-            // 过滤有效数据
-            stationCache = data.filter(row => 
-                row['站点具体位置（误差不超过100米）'] && 
-                !isNaN(parseFloat(row['latitude'])) && 
-                !isNaN(parseFloat(row['longitude']))
-            );
-            
-            overlay.classList.add('hidden');
-            previewContent.innerHTML += `<div class="mt-2 text-[#00f2ea]">✓ 有效站点: ${stationCache.length} 个</div>`;
-            
-            if (stationCache.length > 0) {
-                onDataReady();
-            } else {
-                alert("未找到有效站点数据！");
-            }
-            
-        } catch (error) {
-            console.error(error);
-            overlay.classList.add('hidden');
-            alert("文件解析出错，请检查格式是否符合要求。");
-        }
-    });
+        })();
+    }
 
     // 解析Excel文件
     function parseExcel(file) {
@@ -390,6 +569,9 @@
                     reject(error);
                 }
             };
+            reader.onerror = function(error) {
+                reject(error);
+            };
             reader.readAsArrayBuffer(file);
         });
     }
@@ -397,7 +579,7 @@
     // 验证Excel结构
     function validateExcelStructure(data) {
         if (!data || data.length === 0) {
-            alert("Excel文件中没有数据！");
+            showError("Excel文件中没有数据！");
             return false;
         }
         
@@ -406,7 +588,7 @@
         
         const missing = requiredColumns.filter(col => !headers.includes(col));
         if (missing.length > 0) {
-            alert(`文件格式错误！缺少必需列：${missing.join('、')}`);
+            showError(`文件格式错误！缺少必需列：${missing.join('、')}`);
             return false;
         }
         
@@ -449,15 +631,14 @@
     // 开始分析
     async function startAnalysis() {
         if (!isPrepared || stationCache.length === 0) {
-            alert("请先上传并成功解析 Excel 文件！");
+            showError("请先上传并成功解析 Excel 文件！");
             return;
         }
         const targetAddr = document.getElementById('targetAddress').value.trim();
         if (!targetAddr) {
-            alert("请输入目标地址！");
+            showError("请输入目标地址！");
             return;
         }
-        if (!checkTencentMapAPI()) return;
 
         const btn = document.getElementById('startBtn');
         btn.disabled = true;
@@ -465,13 +646,7 @@
 
         try {
             // 1. 解析目标地址
-            const targetLoc = await new Promise((resolve, reject) => {
-                const geocoder = new qq.maps.Geocoder();
-                geocoder.getLocation(targetAddr, function(result) {
-                    if (result && result.status === 0) resolve({ lat: result.location.lat, lng: result.location.lng });
-                    else reject("目标地址解析失败，请检查地址是否正确！");
-                });
-            });
+            const targetLoc = await geocodeViaJsonp(targetAddr);
 
             // 2. 计算距离
             let minDistance = Infinity;
@@ -501,7 +676,6 @@
                 
                 document.getElementById('resultSection').classList.remove('hidden');
                 document.getElementById('downloadBtn').classList.remove('hidden');
-                document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth', block: 'center' });
                 
                 // 重新触发动画
                 document.getElementById('resultSection').querySelectorAll('.result-item').forEach(el => {
@@ -509,12 +683,38 @@
                     el.offsetHeight;
                     el.style.animation = null;
                 });
+
+                // 4. 对目标地址进行逆地理解码验证
+                try {
+                    const revResult = await reverseGeocodeViaJsonp(targetLoc.lat, targetLoc.lng);
+                    const adInfo = revResult.ad_info || {};
+                    const addrComp = revResult.address_component || {};
+
+                    document.getElementById('revOriginal').innerText = targetAddr;
+                    document.getElementById('revCoords').innerText = targetLoc.lat.toFixed(6) + ', ' + targetLoc.lng.toFixed(6);
+                    document.getElementById('revAddress').innerText = revResult.address || '-';
+                    document.getElementById('revDistrict').innerText = (adInfo.province || '') + (adInfo.city || '') + (adInfo.district || '') || '-';
+                    document.getElementById('revStreet').innerText = (addrComp.street || '') + (addrComp.street_number || '') || '-';
+
+                    document.getElementById('reverseSection').classList.remove('hidden');
+
+                    // 重新触发逆解析区域动画
+                    document.getElementById('reverseSection').querySelectorAll('.result-item').forEach(el => {
+                        el.style.animation = 'none';
+                        el.offsetHeight;
+                        el.style.animation = null;
+                    });
+
+                    document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } catch (revErr) {
+                    console.warn('逆解析失败:', revErr.message);
+                }
             } else {
-                alert("未找到任何有效站点数据！");
+                showError("未找到任何有效站点数据！");
             }
 
         } catch (error) {
-            alert(error);
+            showError(error.message);
         } finally {
             btn.disabled = false;
             btn.innerText = "开始雷达扫描";
@@ -531,8 +731,8 @@
             '城市': station['城市'] || '',
             '站点名称': station['站点名称'] || '',
             '站点具体位置（误差不超过100米）': station['站点具体位置（误差不超过100米）'],
-            'longitude': station['longitude'] || station['longitude'] || '',
-            'latitude': station['latitude'] || station['latitude'] || '',
+            'longitude': station['longitude'] || '',
+            'latitude': station['latitude'] || '',
             '站长姓名': station['站长姓名'] || '',
             '站长电话': station['站长电话'] || ''
         }));
@@ -547,15 +747,67 @@
         XLSX.writeFile(wb, filename);
     }
 
-    // 监听回车键
-    document.getElementById('targetAddress').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') startAnalysis();
-    });
+    // 快速测试：随机地址 → 正解析 → 逆解析
+    async function testReverseGeocode() {
+        const testAddresses = [
+            '北京市海淀区中关村大街1号',
+            '上海市浦东新区陆家嘴环路1000号',
+            '杭州市西湖区文三路478号',
+            '深圳市南山区科技园南区深南大道9966号',
+            '成都市武侯区天府大道北段1700号',
+            '广州市天河区天河路385号',
+            '南京市鼓楼区中山北路283号',
+            '武汉市江汉区解放大道688号'
+        ];
+        const randomAddr = testAddresses[Math.floor(Math.random() * testAddresses.length)];
 
-    // 初始化
+        const btn = document.getElementById('testBtn');
+        btn.disabled = true;
+        btn.innerText = '正在解析中...';
+
+        try {
+            // 正向解析
+            const loc = await geocodeViaJsonp(randomAddr);
+
+            // 逆解析
+            const revResult = await reverseGeocodeViaJsonp(loc.lat, loc.lng);
+            const adInfo = revResult.ad_info || {};
+            const addrComp = revResult.address_component || {};
+
+            document.getElementById('revOriginal').innerText = randomAddr;
+            document.getElementById('revCoords').innerText = loc.lat.toFixed(6) + ', ' + loc.lng.toFixed(6);
+            document.getElementById('revAddress').innerText = revResult.address || '-';
+            document.getElementById('revDistrict').innerText = (adInfo.province || '') + (adInfo.city || '') + (adInfo.district || '') || '-';
+            document.getElementById('revStreet').innerText = (addrComp.street || '') + (addrComp.street_number || '') || '-';
+
+            document.getElementById('reverseSection').classList.remove('hidden');
+
+            // 重新触发动画
+            document.getElementById('reverseSection').querySelectorAll('.result-item').forEach(el => {
+                el.style.animation = 'none';
+                el.offsetHeight;
+                el.style.animation = null;
+            });
+
+            document.getElementById('reverseSection').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } catch (err) {
+            showError('测试失败: ' + err.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = '🔍 快速测试：随机地址正逆解析';
+        }
+    }
+
+    // 监听回车键 + 初始化
     document.addEventListener('DOMContentLoaded', function() {
-        document.getElementById('startBtn').disabled = true;
-        document.getElementById('startBtn').classList.add('opacity-50', 'cursor-not-allowed');
+        const startBtn = document.getElementById('startBtn');
+        startBtn.disabled = true;
+        startBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        
+        document.getElementById('excelFile').addEventListener('change', handleFileUpload);
+        document.getElementById('targetAddress').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') startAnalysis();
+        });
     });
 </script>
 
