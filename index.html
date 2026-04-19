@@ -3,12 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智能站点距离解析系统</title>
-    <!-- 引入 Tailwind CSS -->
+    <title>智能站点雷达 - 黄金辉vibe coding 开发</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 SheetJS 用于前端解析 Excel -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    <!-- 引入腾讯地图 JavaScript API GL版 (使用文档中的Key) -->
     <script src="https://map.qq.com/api/gljs?v=1.exp&key=WJABZ-IC5LI-GLBG5-UA7DS-TU3SS-QVBMG"></script>
     
     <style>
@@ -26,7 +23,6 @@
             overflow-x: hidden;
         }
 
-        /* 动态背景光晕 */
         .bg-blob {
             position: fixed;
             border-radius: 50%;
@@ -42,7 +38,6 @@
             50% { transform: translate(50px, 50px) scale(1.1); }
         }
 
-        /* 玻璃卡片 */
         .glass-card {
             background: rgba(255, 255, 255, 0.05);
             backdrop-filter: blur(20px);
@@ -56,7 +51,6 @@
             box-shadow: 0 8px 32px 0 rgba(0, 242, 234, 0.1);
         }
 
-        /* 输入框样式 */
         input[type="text"], input[type="file"]::file-selector-button {
             background: rgba(255, 255, 255, 0.08);
             border: 1px solid rgba(255, 255, 255, 0.1);
@@ -78,7 +72,6 @@
             background: rgba(0, 242, 234, 0.2);
         }
 
-        /* 渐变按钮 */
         .btn-gradient {
             background: linear-gradient(45deg, var(--primary), var(--secondary));
             background-size: 200% 200%;
@@ -108,7 +101,6 @@
             100% { background-position: 0% 50%; }
         }
 
-        /* 结果动画 */
         .result-item {
             opacity: 0;
             transform: translateY(10px);
@@ -124,7 +116,6 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* 进度条 */
         .progress-bar {
             height: 4px;
             background: linear-gradient(90deg, var(--primary), var(--secondary));
@@ -132,10 +123,23 @@
             transition: width 0.3s linear;
         }
 
-        /* 开发者水印 */
         .dev-badge {
             background: linear-gradient(90deg, rgba(0,242,234,0.1), rgba(255,0,80,0.1));
             border-left: 3px solid var(--primary);
+        }
+
+        .loading-spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -161,21 +165,37 @@
             <p class="mt-3 text-gray-400 text-sm tracking-wide">基于腾讯地图API · Haversine核心算法 · 极速距离解析</p>
         </header>
 
-        <!-- Step 1: 文件上传 -->
+        <!-- Step 1: 文件上传与验证 -->
         <section class="glass-card rounded-2xl p-6">
             <div class="flex items-center mb-4">
                 <span class="flex items-center justify-center w-8 h-8 rounded-full bg-[#00f2ea] text-black font-bold text-sm mr-3">1</span>
                 <h2 class="text-lg font-semibold">导入站点数据</h2>
             </div>
             <input type="file" id="excelFile" accept=".xlsx, .xls" class="w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 rounded-lg cursor-pointer">
-            <p id="fileStatus" class="mt-3 text-xs text-gray-500">支持 .xlsx 格式，需包含"站点具体位置"列</p>
             
-            <!-- 进度条区域 -->
-            <div id="prepProgress" class="mt-4 hidden">
-                <div class="w-full bg-gray-800 rounded-full h-1 overflow-hidden">
-                    <div id="prepBar" class="progress-bar h-full" style="width: 0%"></div>
+            <!-- 文件预览 -->
+            <div id="filePreview" class="hidden mt-4 p-4 bg-gray-800/50 rounded-lg">
+                <h3 class="text-sm font-semibold mb-2 text-[#00f2ea]">文件预览</h3>
+                <div id="previewContent" class="text-xs text-gray-400 space-y-1"></div>
+                <div class="mt-3 flex items-center text-xs">
+                    <span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                    <span>✓ 必填列：站点具体位置（误差不超过100米）</span>
                 </div>
-                <p id="prepText" class="text-xs text-gray-400 mt-2">正在预处理数据...</p>
+            </div>
+            
+            <!-- 加载覆盖层 -->
+            <div id="loadingOverlay" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+                <div class="bg-gray-900 p-8 rounded-2xl text-center">
+                    <div class="loading-spinner mx-auto mb-4"></div>
+                    <h3 class="text-lg font-bold mb-2">正在解析Excel</h3>
+                    <div class="text-sm text-gray-400">
+                        <div>已处理：<span id="processedRows">0</span> / <span id="totalRows">0</span> 行</div>
+                        <div>API调用：<span id="apiCalls">0</span> 次</div>
+                    </div>
+                    <div class="mt-4 w-64 bg-gray-700 rounded-full h-2">
+                        <div id="progressBar" class="bg-[#00f2ea] h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -192,6 +212,16 @@
         <button id="startBtn" onclick="startAnalysis()" class="btn-gradient w-full py-4 rounded-2xl text-lg shadow-lg">
             开始雷达扫描
         </button>
+
+        <!-- 数据就绪指示器 -->
+        <div id="dataReadyIndicator" class="hidden fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50">
+            <div class="flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                </svg>
+                数据就绪！可开始查询
+            </div>
+        </div>
 
         <!-- 结果展示区 -->
         <section id="resultSection" class="glass-card rounded-2xl p-6 hidden border-[#00f2ea]/30">
@@ -224,6 +254,11 @@
             </div>
         </section>
 
+        <!-- 下载按钮 -->
+        <button id="downloadBtn" onclick="downloadUpdatedExcel()" class="hidden btn-gradient w-full py-3 rounded-2xl text-base shadow-lg">
+            下载更新后的Excel文件
+        </button>
+
     </div>
 
     <!-- 底部版权 -->
@@ -232,7 +267,7 @@
     </footer>
 
 <script>
-    let stationCache = []; // 存储处理后的站点数据: { name, addr, master, phone, lat, lng }
+    let stationCache = []; // 存储处理后的站点数据
     let isPrepared = false;
 
     // 延时函数 (用于API限流：每秒5次 = 200ms间隔)
@@ -241,7 +276,7 @@
     // 检查腾讯地图API是否加载成功
     function checkTencentMapAPI() {
         if (typeof qq === 'undefined' || !qq.maps || !qq.maps.Geocoder) {
-            alert("腾讯地图 JS API 加载失败！\n原因通常是：当前网页的域名(或本地file协议)未加入API密钥的白名单。\n请前往腾讯地图控制台修改 Key 的 WebServiceAPI 白名单设置。");
+            alert("腾讯地图 JS API 加载失败！\n原因通常是：当前网页的域名未加入API密钥的白名单。\n请前往腾讯地图控制台修改 Key 的 WebServiceAPI 白名单设置。");
             return false;
         }
         return true;
@@ -255,92 +290,149 @@
         isPrepared = false;
         stationCache = [];
         document.getElementById('resultSection').classList.add('hidden');
+        document.getElementById('downloadBtn').classList.add('hidden');
         
-        const prepProgress = document.getElementById('prepProgress');
-        const prepBar = document.getElementById('prepBar');
-        const prepText = document.getElementById('prepText');
+        const overlay = document.getElementById('loadingOverlay');
+        const preview = document.getElementById('filePreview');
+        const previewContent = document.getElementById('previewContent');
         
         try {
-            const data = new Uint8Array(await file.arrayBuffer());
-            const workbook = XLSX.read(data, { type: 'array' });
-            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-
-            if (jsonData.length === 0) {
-                alert("Excel文件中没有数据！");
+            overlay.classList.remove('hidden');
+            
+            const data = await parseExcel(file);
+            if (!validateExcelStructure(data)) {
+                overlay.classList.add('hidden');
                 return;
             }
-
-            prepProgress.classList.remove('hidden');
-            prepText.innerText = `共发现 ${jsonData.length} 条数据，正在智能预处理...`;
-            prepBar.style.width = "0%";
-
-            if (!checkTencentMapAPI()) return;
-
-            const geocoder = new qq.maps.Geocoder();
-            let needApiCallCount = 0;
-
-            // 第一阶段：数据整理与缺失检测
-            const tempData = jsonData.map((row, index) => {
+            
+            // 显示预览
+            preview.classList.remove('hidden');
+            previewContent.innerHTML = `
+                <div>总行数：${data.length}</div>
+                <div>必填列：站点具体位置（误差不超过100米）</div>
+                <div>可选列：站点名称、站长姓名、站长电话</div>
+            `;
+            
+            const total = data.length;
+            let processed = 0;
+            let apiCalls = 0;
+            
+            // 处理数据
+            for (let i = 0; i < data.length; i++) {
+                const row = data[i];
                 const addr = row['站点具体位置（误差不超过100米）'];
-                if (!addr) return null; // 跳过无地址的行
+                
+                if (!addr) continue; // 跳过无地址的行
                 
                 let lat = parseFloat(row['latitude']);
                 let lng = parseFloat(row['longitude']);
-
-                return {
-                    index,
-                    name: row['站点名称'] || '未知站点',
-                    addr: addr,
-                    master: row['站长姓名'] || '未知',
-                    phone: row['站长电话'] || '-',
-                    lat: isNaN(lat) ? null : lat,
-                    lng: isNaN(lng) ? null : lng
-                };
-            }).filter(Boolean);
-
-            // 统计需要调用API的数量
-            tempData.forEach(item => { if (item.lat === null) needApiCallCount++; });
-
-            // 第二阶段：调用API补充缺失经纬度 (严格执行1秒5次限流)
-            if (needApiCallCount > 0) {
-                prepText.innerText = `发现 ${needApiCallCount} 个缺失经纬度，开始API解析(限流中)...`;
-                let processedCount = 0;
-
-                for (let item of tempData) {
-                    if (item.lat !== null) continue; // 已有缓存跳过
-                    
-                    await new Promise((resolve) => {
-                        geocoder.getLocation(item.addr, function(result) {
-                            if (result && result.status === 0) {
-                                item.lat = result.location.lat;
-                                item.lng = result.location.lng;
-                            } else {
-                                console.warn(`解析失败: ${item.addr}`);
-                            }
-                            processedCount++;
-                            prepBar.style.width = `${(processedCount / needApiCallCount) * 100}%`;
-                            prepText.innerText = `正在解析: ${processedCount}/${needApiCallCount} (严格限流保护中)`;
-                            resolve();
+                
+                if (isNaN(lat) || isNaN(lng)) {
+                    // 需要API解析
+                    if (checkTencentMapAPI()) {
+                        const geocoder = new qq.maps.Geocoder();
+                        await new Promise((resolve) => {
+                            geocoder.getLocation(addr, function(result) {
+                                if (result && result.status === 0) {
+                                    row.latitude = result.location.lat;
+                                    row.longitude = result.location.lng;
+                                } else {
+                                    console.warn(`解析失败: ${addr}`);
+                                }
+                                processed++;
+                                apiCalls++;
+                                updateProgress(processed, total, apiCalls);
+                                resolve();
+                            });
                         });
-                    });
-                    await sleep(250); // 间隔250ms，确保远低于每秒5次限制
+                        await sleep(250); // 限流
+                    }
+                } else {
+                    processed++;
+                    updateProgress(processed, total, apiCalls);
                 }
             }
-
-            stationCache = tempData.filter(item => item.lat !== null); // 过滤掉最终依然没有经纬度的脏数据
             
-            isPrepared = true;
-            prepBar.style.width = "100%";
-            prepText.innerHTML = `<span class="text-[#00f2ea] font-bold">预处理完成!</span> 有效站点: ${stationCache.length} 个 (消耗API: ${needApiCallCount} 次)`;
-            document.getElementById('fileStatus').innerHTML = `<span class="text-[#00f2ea]">✓ ${file.name} 加载成功</span>`;
-
+            // 过滤有效数据
+            stationCache = data.filter(row => 
+                row['站点具体位置（误差不超过100米）'] && 
+                !isNaN(parseFloat(row['latitude'])) && 
+                !isNaN(parseFloat(row['longitude']))
+            );
+            
+            overlay.classList.add('hidden');
+            previewContent.innerHTML += `<div class="mt-2 text-[#00f2ea]">✓ 有效站点: ${stationCache.length} 个</div>`;
+            
+            if (stationCache.length > 0) {
+                onDataReady();
+            } else {
+                alert("未找到有效站点数据！");
+            }
+            
         } catch (error) {
             console.error(error);
-            prepText.innerText = "文件解析出错，请检查格式是否符合要求。";
-            prepText.classList.add('text-[#ff0050]');
+            overlay.classList.add('hidden');
+            alert("文件解析出错，请检查格式是否符合要求。");
         }
     });
+
+    // 解析Excel文件
+    function parseExcel(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    resolve(XLSX.utils.sheet_to_json(worksheet, { defval: "" }));
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    // 验证Excel结构
+    function validateExcelStructure(data) {
+        if (!data || data.length === 0) {
+            alert("Excel文件中没有数据！");
+            return false;
+        }
+        
+        const requiredColumns = ['站点具体位置（误差不超过100米）'];
+        const headers = Object.keys(data[0] || {});
+        
+        const missing = requiredColumns.filter(col => !headers.includes(col));
+        if (missing.length > 0) {
+            alert(`文件格式错误！缺少必需列：${missing.join('、')}`);
+            return false;
+        }
+        
+        return true;
+    }
+
+    // 更新进度
+    function updateProgress(processed, total, apiCalls) {
+        document.getElementById('processedRows').textContent = processed;
+        document.getElementById('totalRows').textContent = total;
+        document.getElementById('apiCalls').textContent = apiCalls;
+        document.getElementById('progressBar').style.width = `${(processed/total)*100}%`;
+    }
+
+    // 数据就绪通知
+    function onDataReady() {
+        const indicator = document.getElementById('dataReadyIndicator');
+        indicator.classList.remove('hidden');
+        
+        setTimeout(() => {
+            indicator.classList.add('hidden');
+        }, 3000);
+        
+        document.getElementById('startBtn').disabled = false;
+        document.getElementById('startBtn').classList.remove('opacity-50', 'cursor-not-allowed');
+    }
 
     // Haversine 公式 (单位：米)
     function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -354,9 +446,9 @@
         return R * c;
     }
 
-    // 点击开始分析
+    // 开始分析
     async function startAnalysis() {
-        if (!isPrepared) {
+        if (!isPrepared || stationCache.length === 0) {
             alert("请先上传并成功解析 Excel 文件！");
             return;
         }
@@ -372,7 +464,7 @@
         btn.innerText = "雷达扫描中...";
 
         try {
-            // 1. 解析目标地址 (仅消耗1次API)
+            // 1. 解析目标地址
             const targetLoc = await new Promise((resolve, reject) => {
                 const geocoder = new qq.maps.Geocoder();
                 geocoder.getLocation(targetAddr, function(result) {
@@ -381,41 +473,40 @@
                 });
             });
 
-            // 2. 遍历计算距离 (纯数学计算，0 API消耗)
+            // 2. 计算距离
             let minDistance = Infinity;
             let closestStation = null;
 
             for (const station of stationCache) {
-                const dist = calculateDistance(targetLoc.lat, targetLoc.lng, station.lat, station.lng);
+                const dist = calculateDistance(targetLoc.lat, targetLoc.lng, station.latitude, station.longitude);
                 if (dist < minDistance) {
                     minDistance = dist;
                     closestStation = station;
                 }
             }
 
-            // 3. 渲染结果
+            // 3. 显示结果
             if (closestStation) {
                 const distText = minDistance > 1000 ? (minDistance / 1000).toFixed(2) + ' km' : Math.round(minDistance) + ' m';
                 
-                document.getElementById('resName').innerText = closestStation.name;
-                document.getElementById('resAddr').innerText = closestStation.addr;
-                document.getElementById('resMaster').innerText = closestStation.master;
+                document.getElementById('resName').innerText = closestStation['站点名称'] || '未知站点';
+                document.getElementById('resAddr').innerText = closestStation['站点具体位置（误差不超过100米）'];
+                document.getElementById('resMaster').innerText = closestStation['站长姓名'] || '未知';
                 
                 const phoneEl = document.getElementById('resPhone');
-                phoneEl.innerText = closestStation.phone;
-                phoneEl.href = `tel:${closestStation.phone}`;
+                phoneEl.innerText = closestStation['站长电话'] || '-';
+                phoneEl.href = `tel:${closestStation['站长电话'] || ''}`;
                 
                 document.getElementById('resDist').innerText = distText;
                 
-                // 触发显示动画
-                const resSection = document.getElementById('resultSection');
-                resSection.classList.remove('hidden');
-                resSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                document.getElementById('resultSection').classList.remove('hidden');
+                document.getElementById('downloadBtn').classList.remove('hidden');
+                document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth', block: 'center' });
                 
-                // 重新触发内部子元素的动画
-                resSection.querySelectorAll('.result-item').forEach(el => {
+                // 重新触发动画
+                document.getElementById('resultSection').querySelectorAll('.result-item').forEach(el => {
                     el.style.animation = 'none';
-                    el.offsetHeight; /* trigger reflow */
+                    el.offsetHeight;
                     el.style.animation = null;
                 });
             } else {
@@ -430,9 +521,41 @@
         }
     }
 
-    // 监听回车键触发查询
+    // 下载更新后的Excel
+    function downloadUpdatedExcel() {
+        if (stationCache.length === 0) return;
+        
+        // 转换数据格式
+        const updatedData = stationCache.map(station => ({
+            '区域': station['区域'] || '',
+            '城市': station['城市'] || '',
+            '站点名称': station['站点名称'] || '',
+            '站点具体位置（误差不超过100米）': station['站点具体位置（误差不超过100米）'],
+            'longitude': station['longitude'] || station['longitude'] || '',
+            'latitude': station['latitude'] || station['latitude'] || '',
+            '站长姓名': station['站长姓名'] || '',
+            '站长电话': station['站长电话'] || ''
+        }));
+        
+        // 创建工作簿
+        const ws = XLSX.utils.json_to_sheet(updatedData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "站点数据");
+        
+        // 生成并下载
+        const filename = `站点数据_${new Date().toISOString().slice(0,10)}.xlsx`;
+        XLSX.writeFile(wb, filename);
+    }
+
+    // 监听回车键
     document.getElementById('targetAddress').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') startAnalysis();
+    });
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('startBtn').disabled = true;
+        document.getElementById('startBtn').classList.add('opacity-50', 'cursor-not-allowed');
     });
 </script>
 
