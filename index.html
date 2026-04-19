@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能站点距离解析系统</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 SheetJS 用于前端解析 Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <!-- 引入腾讯地图 JavaScript API GL版 (使用文档中的Key) -->
+    <script src="https://map.qq.com/api/gljs?v=1.exp&key=WJABZ-IC5LI-GLBG5-UA7DS-TU3SS-QVBMG"></script>
+    
+    <style>
+        :root {
+            --primary: #00f2ea;
+            --secondary: #ff0050;
+            --bg-dark: #0f0c29;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            min-height: 100vh;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        /* 动态背景光晕 */
+        .bg-blob {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: -1;
+            animation: float 8s ease-in-out infinite;
+        }
+        .blob-1 { width: 400px; height: 400px; background: rgba(0, 242, 234, 0.15); top: -100px; left: -100px; }
+        .blob-2 { width: 500px; height: 500px; background: rgba(255, 0, 80, 0.1); bottom: -150px; right: -150px; animation-delay: 4s; }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(50px, 50px) scale(1.1); }
+        }
+
+        /* 玻璃卡片 */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            transition: all 0.3s ease;
+        }
+        .glass-card:hover {
+            border-color: rgba(0, 242, 234, 0.3);
+            box-shadow: 0 8px 32px 0 rgba(0, 242, 234, 0.1);
+        }
+
+        /* 输入框样式 */
+        input[type="text"], input[type="file"]::file-selector-button {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            transition: all 0.3s ease;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 15px rgba(0, 242, 234, 0.2);
+        }
+        input[type="file"]::file-selector-button {
+            border-radius: 6px;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        input[type="file"]::file-selector-button:hover {
+            background: rgba(0, 242, 234, 0.2);
+        }
+
+        /* 渐变按钮 */
+        .btn-gradient {
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            background-size: 200% 200%;
+            animation: gradient-shift 3s ease infinite;
+            border: none;
+            color: white;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn-gradient:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 242, 234, 0.3);
+        }
+        .btn-gradient:active { transform: translateY(0); }
+        .btn-gradient:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        @keyframes gradient-shift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* 结果动画 */
+        .result-item {
+            opacity: 0;
+            transform: translateY(10px);
+            animation: fadeInUp 0.5s forwards;
+        }
+        .result-item:nth-child(1) { animation-delay: 0.1s; }
+        .result-item:nth-child(2) { animation-delay: 0.2s; }
+        .result-item:nth-child(3) { animation-delay: 0.3s; }
+        .result-item:nth-child(4) { animation-delay: 0.4s; }
+        .result-item:nth-child(5) { animation-delay: 0.5s; }
+
+        @keyframes fadeInUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 进度条 */
+        .progress-bar {
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            border-radius: 2px;
+            transition: width 0.3s linear;
+        }
+
+        /* 开发者水印 */
+        .dev-badge {
+            background: linear-gradient(90deg, rgba(0,242,234,0.1), rgba(255,0,80,0.1));
+            border-left: 3px solid var(--primary);
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-start py-10 px-4">
+
+    <!-- 动态背景 -->
+    <div class="bg-blob blob-1"></div>
+    <div class="bg-blob blob-2"></div>
+
+    <!-- 开发者标识 -->
+    <div class="dev-badge text-xs text-gray-400 px-4 py-2 rounded-r-full mb-6 tracking-widest">
+        POWERED BY 黄金辉vibe coding 开发
+    </div>
+
+    <!-- 主容器 -->
+    <div class="w-full max-w-2xl space-y-6">
+        
+        <!-- 标题 -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-[#00f2ea] to-[#ff0050]">
+                智能站点雷达
+            </h1>
+            <p class="mt-3 text-gray-400 text-sm tracking-wide">基于腾讯地图API · Haversine核心算法 · 极速距离解析</p>
+        </header>
+
+        <!-- Step 1: 文件上传 -->
+        <section class="glass-card rounded-2xl p-6">
+            <div class="flex items-center mb-4">
+                <span class="flex items-center justify-center w-8 h-8 rounded-full bg-[#00f2ea] text-black font-bold text-sm mr-3">1</span>
+                <h2 class="text-lg font-semibold">导入站点数据</h2>
+            </div>
+            <input type="file" id="excelFile" accept=".xlsx, .xls" class="w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 rounded-lg cursor-pointer">
+            <p id="fileStatus" class="mt-3 text-xs text-gray-500">支持 .xlsx 格式，需包含"站点具体位置"列</p>
+            
+            <!-- 进度条区域 -->
+            <div id="prepProgress" class="mt-4 hidden">
+                <div class="w-full bg-gray-800 rounded-full h-1 overflow-hidden">
+                    <div id="prepBar" class="progress-bar h-full" style="width: 0%"></div>
+                </div>
+                <p id="prepText" class="text-xs text-gray-400 mt-2">正在预处理数据...</p>
+            </div>
+        </section>
+
+        <!-- Step 2: 目标地址 -->
+        <section class="glass-card rounded-2xl p-6">
+            <div class="flex items-center mb-4">
+                <span class="flex items-center justify-center w-8 h-8 rounded-full bg-[#ff0050] text-white font-bold text-sm mr-3">2</span>
+                <h2 class="text-lg font-semibold">输入目标地址</h2>
+            </div>
+            <input type="text" id="targetAddress" placeholder="例如：北京市海淀区中关村大街1号" class="w-full px-4 py-3 rounded-lg text-sm">
+        </section>
+
+        <!-- 执行按钮 -->
+        <button id="startBtn" onclick="startAnalysis()" class="btn-gradient w-full py-4 rounded-2xl text-lg shadow-lg">
+            开始雷达扫描
+        </button>
+
+        <!-- 结果展示区 -->
+        <section id="resultSection" class="glass-card rounded-2xl p-6 hidden border-[#00f2ea]/30">
+            <h2 class="text-xl font-bold mb-5 text-[#00f2ea] flex items-center">
+                <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                最近站点匹配结果
+            </h2>
+            
+            <div class="space-y-4">
+                <div class="result-item flex justify-between items-center border-b border-gray-700/50 pb-3">
+                    <span class="text-gray-400 text-sm">站点名称</span>
+                    <span id="resName" class="font-semibold text-lg text-white">-</span>
+                </div>
+                <div class="result-item flex justify-between items-start border-b border-gray-700/50 pb-3">
+                    <span class="text-gray-400 text-sm mt-1">具体位置</span>
+                    <span id="resAddr" class="font-medium text-right text-sm text-gray-300 max-w-[60%]">-</span>
+                </div>
+                <div class="result-item flex justify-between items-center border-b border-gray-700/50 pb-3">
+                    <span class="text-gray-400 text-sm">站长姓名</span>
+                    <span id="resMaster" class="font-medium text-white">-</span>
+                </div>
+                <div class="result-item flex justify-between items-center border-b border-gray-700/50 pb-3">
+                    <span class="text-gray-400 text-sm">联系电话</span>
+                    <a id="resPhone" href="tel:" class="font-mono text-[#00f2ea] hover:underline">-</a>
+                </div>
+                <div class="result-item flex justify-between items-center pt-2">
+                    <span class="text-gray-400 text-sm">直线距离</span>
+                    <span id="resDist" class="text-2xl font-extrabold text-[#ff0050]">-</span>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- 底部版权 -->
+    <footer class="mt-16 mb-8 text-center text-gray-600 text-xs tracking-wider">
+        &copy; 2025 黄金辉vibe coding 开发 · 腾讯地图API驱动
+    </footer>
+
+<script>
+    let stationCache = []; // 存储处理后的站点数据: { name, addr, master, phone, lat, lng }
+    let isPrepared = false;
+
+    // 延时函数 (用于API限流：每秒5次 = 200ms间隔)
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // 检查腾讯地图API是否加载成功
+    function checkTencentMapAPI() {
+        if (typeof qq === 'undefined' || !qq.maps || !qq.maps.Geocoder) {
+            alert("腾讯地图 JS API 加载失败！\n原因通常是：当前网页的域名(或本地file协议)未加入API密钥的白名单。\n请前往腾讯地图控制台修改 Key 的 WebServiceAPI 白名单设置。");
+            return false;
+        }
+        return true;
+    }
+
+    // 监听文件上传
+    document.getElementById('excelFile').addEventListener('change', async function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        isPrepared = false;
+        stationCache = [];
+        document.getElementById('resultSection').classList.add('hidden');
+        
+        const prepProgress = document.getElementById('prepProgress');
+        const prepBar = document.getElementById('prepBar');
+        const prepText = document.getElementById('prepText');
+        
+        try {
+            const data = new Uint8Array(await file.arrayBuffer());
+            const workbook = XLSX.read(data, { type: 'array' });
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+            if (jsonData.length === 0) {
+                alert("Excel文件中没有数据！");
+                return;
+            }
+
+            prepProgress.classList.remove('hidden');
+            prepText.innerText = `共发现 ${jsonData.length} 条数据，正在智能预处理...`;
+            prepBar.style.width = "0%";
+
+            if (!checkTencentMapAPI()) return;
+
+            const geocoder = new qq.maps.Geocoder();
+            let needApiCallCount = 0;
+
+            // 第一阶段：数据整理与缺失检测
+            const tempData = jsonData.map((row, index) => {
+                const addr = row['站点具体位置（误差不超过100米）'];
+                if (!addr) return null; // 跳过无地址的行
+                
+                let lat = parseFloat(row['latitude']);
+                let lng = parseFloat(row['longitude']);
+
+                return {
+                    index,
+                    name: row['站点名称'] || '未知站点',
+                    addr: addr,
+                    master: row['站长姓名'] || '未知',
+                    phone: row['站长电话'] || '-',
+                    lat: isNaN(lat) ? null : lat,
+                    lng: isNaN(lng) ? null : lng
+                };
+            }).filter(Boolean);
+
+            // 统计需要调用API的数量
+            tempData.forEach(item => { if (item.lat === null) needApiCallCount++; });
+
+            // 第二阶段：调用API补充缺失经纬度 (严格执行1秒5次限流)
+            if (needApiCallCount > 0) {
+                prepText.innerText = `发现 ${needApiCallCount} 个缺失经纬度，开始API解析(限流中)...`;
+                let processedCount = 0;
+
+                for (let item of tempData) {
+                    if (item.lat !== null) continue; // 已有缓存跳过
+                    
+                    await new Promise((resolve) => {
+                        geocoder.getLocation(item.addr, function(result) {
+                            if (result && result.status === 0) {
+                                item.lat = result.location.lat;
+                                item.lng = result.location.lng;
+                            } else {
+                                console.warn(`解析失败: ${item.addr}`);
+                            }
+                            processedCount++;
+                            prepBar.style.width = `${(processedCount / needApiCallCount) * 100}%`;
+                            prepText.innerText = `正在解析: ${processedCount}/${needApiCallCount} (严格限流保护中)`;
+                            resolve();
+                        });
+                    });
+                    await sleep(250); // 间隔250ms，确保远低于每秒5次限制
+                }
+            }
+
+            stationCache = tempData.filter(item => item.lat !== null); // 过滤掉最终依然没有经纬度的脏数据
+            
+            isPrepared = true;
+            prepBar.style.width = "100%";
+            prepText.innerHTML = `<span class="text-[#00f2ea] font-bold">预处理完成!</span> 有效站点: ${stationCache.length} 个 (消耗API: ${needApiCallCount} 次)`;
+            document.getElementById('fileStatus').innerHTML = `<span class="text-[#00f2ea]">✓ ${file.name} 加载成功</span>`;
+
+        } catch (error) {
+            console.error(error);
+            prepText.innerText = "文件解析出错，请检查格式是否符合要求。";
+            prepText.classList.add('text-[#ff0050]');
+        }
+    });
+
+    // Haversine 公式 (单位：米)
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371000; 
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    // 点击开始分析
+    async function startAnalysis() {
+        if (!isPrepared) {
+            alert("请先上传并成功解析 Excel 文件！");
+            return;
+        }
+        const targetAddr = document.getElementById('targetAddress').value.trim();
+        if (!targetAddr) {
+            alert("请输入目标地址！");
+            return;
+        }
+        if (!checkTencentMapAPI()) return;
+
+        const btn = document.getElementById('startBtn');
+        btn.disabled = true;
+        btn.innerText = "雷达扫描中...";
+
+        try {
+            // 1. 解析目标地址 (仅消耗1次API)
+            const targetLoc = await new Promise((resolve, reject) => {
+                const geocoder = new qq.maps.Geocoder();
+                geocoder.getLocation(targetAddr, function(result) {
+                    if (result && result.status === 0) resolve({ lat: result.location.lat, lng: result.location.lng });
+                    else reject("目标地址解析失败，请检查地址是否正确！");
+                });
+            });
+
+            // 2. 遍历计算距离 (纯数学计算，0 API消耗)
+            let minDistance = Infinity;
+            let closestStation = null;
+
+            for (const station of stationCache) {
+                const dist = calculateDistance(targetLoc.lat, targetLoc.lng, station.lat, station.lng);
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    closestStation = station;
+                }
+            }
+
+            // 3. 渲染结果
+            if (closestStation) {
+                const distText = minDistance > 1000 ? (minDistance / 1000).toFixed(2) + ' km' : Math.round(minDistance) + ' m';
+                
+                document.getElementById('resName').innerText = closestStation.name;
+                document.getElementById('resAddr').innerText = closestStation.addr;
+                document.getElementById('resMaster').innerText = closestStation.master;
+                
+                const phoneEl = document.getElementById('resPhone');
+                phoneEl.innerText = closestStation.phone;
+                phoneEl.href = `tel:${closestStation.phone}`;
+                
+                document.getElementById('resDist').innerText = distText;
+                
+                // 触发显示动画
+                const resSection = document.getElementById('resultSection');
+                resSection.classList.remove('hidden');
+                resSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                // 重新触发内部子元素的动画
+                resSection.querySelectorAll('.result-item').forEach(el => {
+                    el.style.animation = 'none';
+                    el.offsetHeight; /* trigger reflow */
+                    el.style.animation = null;
+                });
+            } else {
+                alert("未找到任何有效站点数据！");
+            }
+
+        } catch (error) {
+            alert(error);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "开始雷达扫描";
+        }
+    }
+
+    // 监听回车键触发查询
+    document.getElementById('targetAddress').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') startAnalysis();
+    });
+</script>
+
+</body>
+</html>
