@@ -1,0 +1,10 @@
+{
+  "name": "gpsnijiexi",            // 随便写，用来在 ESA 里显示项目名
+  "entry": "",                     // 不用函数，留空就行
+  "installCommand": "",            // 跳过安装依赖
+  "buildCommand": "",              // 跳过构建
+  "assets": {
+    "directory": "./",             // 静态资源目录 = 仓库根目录（你的 index.html 在这）
+    "notFoundStrategy": "singlePageApplication"
+  }
+}
